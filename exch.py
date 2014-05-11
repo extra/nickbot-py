@@ -1,63 +1,119 @@
 # exchange code
-import sys
+import pusherclient
+import logging
+import json
+from sys import exit
 
-class Exchange:
-    def __init__(self, name, currency = "USD", volumeThreshold = 250,
-    wallThreshold = 500):
+# local imports
+import twistedpusher
+from util import RepeatEvent
+
+#logging.basicConfig(level=logging.DEBUG)
+
+class Exchange(object):
+    def __init__(self, name, currency="USD", tradeThreshold=100,
+                 volumeThreshold=250, wallThreshold=500):
         self.name = name
         self.currency = currency
 
-        self.thresholdVolume = volumeThreshold
+        self.thresholdTrade = float(tradeThreshold)
+
+        self.thresholdVolume = float(volumeThreshold)
+        self.iterVolume = 0
         self.volume = {x: 0 for x in (1440, 720, 360, 180, 120, 60, 30, 15, 10,
-        5)}
+                                      5, 1)}
+        self.volumeTimer = RepeatEvent(60, self.updateVolume)
 
         self.lastTrade = 0
 
-        self.thresholdWall = wallThreshold
-        self.orderBook = { (0, 0, 0) } # { (price, id, volume) }
-        self.oldBook = { (0, 0, 0) } # for set comparisons
+        self.thresholdWall = float(wallThreshold)
+        self.orderBook = {(0, 0, 0, 0)}  # { (id, type, price, amount) }
+        self.oldBook = {(0, 0, 0, 0)}  # for set comparisons
+        self.wallTimer = RepeatEvent(15, self.findWalls)
         # orderBook is a set of 3-tuples
         # use set membership tests to parse wall data
-        # TODO : only add to sets if order fits criteria/threshold
+        # TODO : if order deleted w/0 volume then probably filled, else pulled
 
     def getVolume(self, interval):
         return self.volume[interval]
 
     def updateVolume(self):
-# TODO : method for repeating this every 60s
         for n in [1440, 720, 360, 180, 120, 60, 30, 15, 10, 5]:
             if self.iterVolume % n == 0:
                 self.volume[n] = self.volume[1]
             else:
                 self.volume[n] += self.volume[1]
         if self.volume[1] >= self.thresholdVolume:
-# TODO : do something (alert)
-            self.volume = self.volume #remove me
+            print "Volume Alert: %d\n" % self.volume[1]
+            # TODO : do something (alert)
         self.volume[1] = 0
         if self.iterVolume == 1441:
             self.iterVolume = 0
         else:
             self.iterVolume += 1
 
-    def setVolume(self):
-# TODO : define in subclass
-        sys.exit("ABORT: define setVolume in subclass")
+    def gotVolume(self):
+        exit("ABORT: define setVolume in subclass")
 
-    def setTrade(self):
-# TODO : call trade alert in subclass as well
-        sys.exit("ABORT: define setTrade in subclass")
+    def gotTrade(self):
+        exit("ABORT: define setTrade in subclass")
 
     def orderAdd(self):
-        sys.exit("ABORT: define orderAdd in subclass")
+        exit("ABORT: define orderAdd in subclass")
 
     def orderDel(self):
-        sys.exit("ABORT: define orderDel in subclass")
+        exit("ABORT: define orderDel in subclass")
 
     def findWalls(self):
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
-            printf("new") # TODO : add alert
+            print "New Order: %i\n" % order[0]  # TODO : add alert
         for order in self.oldBook - self.orderBook:
             # in oldBook, but not in orderBook (wall pulled)
-            printf("old") # TODO : add alert
-        self.oldBook = self.orderBook # TODO : worry about concurrency?
+            print "Old Order: %i\n" % order[0]  # TODO : add alert
+        self.oldBook = self.orderBook  # TODO : worry about concurrency?
+
+
+class Bitstamp(Exchange):
+    def __init__(self, pusherKey='de504dc5763aeef9ff52'):
+        Exchange.__init__(self, "Bitstamp", tradeThreshold=5,
+                          volumeThreshold=15, wallThreshold=100)
+        self.pusherKey = pusherKey
+        self.pusher = twistedpusher.Client(key=self.pusherKey)
+
+        self.tradeChannel = self.pusher.subscribe('live_trades')
+        self.orderChannel = self.pusher.subscribe('live_orders')
+
+        self.tradeChannel.bind('trade', self.gotTrade)
+        self.tradeChannel.bind('trade', self.gotVolume)
+        self.orderChannel.bind('order_created', self.orderAdd)
+        self.orderChannel.bind('order_deleted', self.orderDel)
+
+    def gotVolume(self, event):
+        data = json.loads(event['data'].encode('utf-8'))
+        id, price, amount = int(data['id']), float(data['price']), float(data['amount'])
+        self.volume[1] += amount
+
+    def gotTrade(self, event):
+        data = json.loads(event['data'].encode('utf-8'))
+        id, price, amount = int(data['id']), float(data['price']), float(data['amount'])
+        self.lastTrade = price
+        if amount >= self.thresholdTrade:
+            # TODO alert here
+            print "Trade: {0:.3f}".format(amount)
+
+    def orderAdd(self, event):
+        data = json.loads(event['data'].encode('utf-8'))
+        tradeId, price, amount, tradeType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
+        # TODO fix above (separate lines)
+
+        # TODO config alert amount
+        if amount >= self.thresholdWall and (price < self.lastTrade + 15 or
+                                             price > self.lastTrade - 15):
+            self.orderBook.add((tradeId, tradeType, price, amount))
+
+    def orderDel(self, event):
+        data = json.loads(event['data'].encode('utf-8'))
+        tradeId, price, amount, tradeType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
+
+        self.orderBook.discard((tradeId, tradeType, price, amount))
