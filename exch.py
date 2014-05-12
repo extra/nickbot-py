@@ -49,7 +49,7 @@ class Exchange(object):
             else:
                 self.volume[n] += self.volume[1]
         if self.volume[1] >= self.thresholdVolume:
-            volumeAlert( self.volume[1] )
+            self.volumeAlert( self.volume[1] )
         self.volume[1] = 0
         if self.iterVolume == 1441:
             self.iterVolume = 0
@@ -72,11 +72,11 @@ class Exchange(object):
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
             #print "New Order: %i\n" % order[0]  # TODO : add alert
-            wallAlert( order[3], order[2], order[1] )
+            self.wallAlert( order[3], order[2], order[1] )
         for order in self.oldBook - self.orderBook:
             # in oldBook, but not in orderBook (wall pulled)
             #print "Old Order: %i\n" % order[0]  # TODO : add alert
-            wallAlert( -1 *order[3], order[2], order[1] )
+            self.wallAlert( -1 *order[3], order[2], order[1] )
         self.oldBook = self.orderBook  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
@@ -95,8 +95,8 @@ class Exchange(object):
 
 class Bitstamp(Exchange):
     def __init__(self, keepAlive, queue, pusherKey='de504dc5763aeef9ff52'):
-        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=1,
-                          volumeThreshold=15, wallThreshold=100)
+        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=100,
+                          volumeThreshold=250, wallThreshold=500)
 
         self.pusherKey = pusherKey
         self.pusher = twistedpusher.Client(key=self.pusherKey)
