@@ -5,7 +5,6 @@ import Queue
 from sys import exit
 from time import sleep
 
-import pusherclient
 from twisted.internet import reactor
 
 # local imports
