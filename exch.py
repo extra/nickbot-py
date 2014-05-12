@@ -1,8 +1,12 @@
 # exchange code
-import pusherclient
 import logging
 import json
+import Queue
 from sys import exit
+from time import sleep
+
+import pusherclient
+from twisted.internet import reactor
 
 # local imports
 import twistedpusher
@@ -11,10 +15,11 @@ from util import RepeatEvent
 #logging.basicConfig(level=logging.DEBUG)
 
 class Exchange(object):
-    def __init__(self, name, currency="USD", tradeThreshold=100,
+    def __init__(self, name, queue, currency="USD", tradeThreshold=100,
                  volumeThreshold=250, wallThreshold=500):
         self.name = name
         self.currency = currency
+        self.q = queue
 
         self.thresholdTrade = float(tradeThreshold)
 
@@ -44,8 +49,7 @@ class Exchange(object):
             else:
                 self.volume[n] += self.volume[1]
         if self.volume[1] >= self.thresholdVolume:
-            print "Volume Alert: %d\n" % self.volume[1]
-            # TODO : do something (alert)
+            volumeAlert( self.volume[1] )
         self.volume[1] = 0
         if self.iterVolume == 1441:
             self.iterVolume = 0
@@ -67,17 +71,33 @@ class Exchange(object):
     def findWalls(self):
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
-            print "New Order: %i\n" % order[0]  # TODO : add alert
+            #print "New Order: %i\n" % order[0]  # TODO : add alert
+            wallAlert( order[3], order[2], order[1] )
         for order in self.oldBook - self.orderBook:
             # in oldBook, but not in orderBook (wall pulled)
-            print "Old Order: %i\n" % order[0]  # TODO : add alert
+            #print "Old Order: %i\n" % order[0]  # TODO : add alert
+            wallAlert( -1 *order[3], order[2], order[1] )
         self.oldBook = self.orderBook  # TODO : worry about concurrency?
+
+    def tradeAlert(self, amount, price, direction):
+        self.q.put("{} Trade Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, amount, price))
+
+    def wallAlert(self, amount, price):
+        direction = "Added"
+        if amount < 0:
+            direction = "Pulled"
+        self.q.put("{} Wall Alert | {} {:.3f} @ {:.3f}".format(self,name,
+        direction, amount, price))
+
+    def volumeAlert(self, amount):
+        self.q.put("{} Volume Alert | {:.3f}".format(self.name, amount))
 
 
 class Bitstamp(Exchange):
-    def __init__(self, pusherKey='de504dc5763aeef9ff52'):
-        Exchange.__init__(self, "Bitstamp", tradeThreshold=5,
+    def __init__(self, keepAlive, queue, pusherKey='de504dc5763aeef9ff52'):
+        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=1,
                           volumeThreshold=15, wallThreshold=100)
+
         self.pusherKey = pusherKey
         self.pusher = twistedpusher.Client(key=self.pusherKey)
 
@@ -88,6 +108,9 @@ class Bitstamp(Exchange):
         self.tradeChannel.bind('trade', self.gotVolume)
         self.orderChannel.bind('order_created', self.orderAdd)
         self.orderChannel.bind('order_deleted', self.orderDel)
+        print "Exchange Initiated"
+        if keepAlive:
+            reactor.run(installSignalHandlers=0)
 
     def gotVolume(self, event):
         data = json.loads(event['data'].encode('utf-8'))
@@ -100,7 +123,7 @@ class Bitstamp(Exchange):
         self.lastTrade = price
         if amount >= self.thresholdTrade:
             # TODO alert here
-            print "Trade: {0:.3f}".format(amount)
+            self.tradeAlert(amount, price, "BUYSELL")
 
     def orderAdd(self, event):
         data = json.loads(event['data'].encode('utf-8'))
