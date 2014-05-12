@@ -31,8 +31,8 @@ class Exchange(object):
         self.lastTrade = 0
 
         self.thresholdWall = float(wallThreshold)
-        self.orderBook = {(0, 0, 0, 0)}  # { (id, type, price, amount) }
-        self.oldBook = {(0, 0, 0, 0)}  # for set comparisons
+        self.orderBook = {[(0, 0, 0, 0)]}  # { (id, type, price, amount) }
+        self.oldBook = {[(0, 0, 0, 0)]}  # for set comparisons
         self.wallTimer = RepeatEvent(15, self.findWalls)
         # orderBook is a set of 3-tuples
         # use set membership tests to parse wall data
@@ -130,14 +130,12 @@ class Bitstamp(Exchange):
         # TODO fix above (separate lines)
 
         # TODO config alert amount
-        print "Order {}: {} @ {} ({})".format(tradeId, amount, price, self.lastTrade)
         if amount >= float(self.thresholdWall) and (price < self.lastTrade + 15 and
                                              price > self.lastTrade - 15):
-            print "ADDING!"
             self.orderBook.add((tradeId, tradeType, price, amount))
 
     def orderDel(self, event):
         data = json.loads(event['data'].encode('utf-8'))
         tradeId, price, amount, tradeType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
 
-        #self.orderBook.discard((tradeId, tradeType, price, amount))
+        self.orderBook.discard((tradeId, tradeType, price, amount))
