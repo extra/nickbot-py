@@ -131,8 +131,9 @@ class Bitstamp(Exchange):
 
         # TODO config alert amount
         print "Order {}: {} @ {} ({})".format(tradeId, amount, price, self.lastTrade)
-        if amount >= self.thresholdWall and (price < self.lastTrade + 15 and
+        if amount >= float(self.thresholdWall) and (price < self.lastTrade + 15 and
                                              price > self.lastTrade - 15):
+            print "ADDING!"
             self.orderBook.add((tradeId, tradeType, price, amount))
 
     def orderDel(self, event):
