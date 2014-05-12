@@ -94,8 +94,8 @@ class Exchange(object):
 
 class Bitstamp(Exchange):
     def __init__(self, keepAlive, queue, pusherKey='de504dc5763aeef9ff52'):
-        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=100,
-                          volumeThreshold=250, wallThreshold=500)
+        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=5,
+                          volumeThreshold=25, wallThreshold=50)
 
         self.pusherKey = pusherKey
         self.pusher = twistedpusher.Client(key=self.pusherKey)
@@ -130,7 +130,7 @@ class Bitstamp(Exchange):
         # TODO fix above (separate lines)
 
         # TODO config alert amount
-        if amount >= self.thresholdWall and (price < self.lastTrade + 15 or
+        if amount >= self.thresholdWall and (price < self.lastTrade + 15 and
                                              price > self.lastTrade - 15):
             self.orderBook.add((tradeId, tradeType, price, amount))
 
