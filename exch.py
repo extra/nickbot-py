@@ -68,6 +68,7 @@ class Exchange(object):
         exit("ABORT: define orderDel in subclass")
 
     def findWalls(self):
+        print "Searching!"
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
             #print "New Order: %i\n" % order[0]  # TODO : add alert
@@ -138,4 +139,4 @@ class Bitstamp(Exchange):
         data = json.loads(event['data'].encode('utf-8'))
         tradeId, price, amount, tradeType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
 
-        self.orderBook.discard((tradeId, tradeType, price, amount))
+        #self.orderBook.discard((tradeId, tradeType, price, amount))
