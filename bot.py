@@ -69,7 +69,7 @@ nick = Nickbot("nickbotv2", "chat.freenode.net", 6667)
 ## btc config ##
 
 #stamp = exch.Bitstamp(nick.msg_all) 
-stamp = threading.Thread(target=exch.Bitstamp, args=(True,q))
+stamp = threading.Thread(target=exch.Bitstamp, args=(True,q,))
 stamp.daemon = True
 stamp.start()
 
@@ -78,7 +78,6 @@ nick.start()
 while True:
     try:
         msg = q.get(False)
-        print "UnQ: {}".format(msg)
         nick.msg_all( msg )
     except Queue.Empty:
         #do nothing

@@ -31,8 +31,8 @@ class Exchange(object):
         self.lastTrade = 0
 
         self.thresholdWall = float(wallThreshold)
-        self.orderBook = {[(0, 0, 0, 0)]}  # { (id, type, price, amount) }
-        self.oldBook = {[(0, 0, 0, 0)]}  # for set comparisons
+        self.orderBook = {(0, 0, 0, 0)}  # { (id, type, price, amount) }
+        self.oldBook = {(0, 0, 0, 0)}  # for set comparisons
         self.wallTimer = RepeatEvent(15, self.findWalls)
         # orderBook is a set of 3-tuples
         # use set membership tests to parse wall data
@@ -70,23 +70,20 @@ class Exchange(object):
     def findWalls(self):
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
-            #print "New Order: %i\n" % order[0]  # TODO : add alert
             self.wallAlert( order[3], order[2], order[1] )
         for order in self.oldBook - self.orderBook:
             # in oldBook, but not in orderBook (wall pulled)
-            #print "Old Order: %i\n" % order[0]  # TODO : add alert
             self.wallAlert( -1 *order[3], order[2], order[1] )
-        self.oldBook = self.orderBook  # TODO : worry about concurrency?
+        self.oldBook = self.orderBook.copy()  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
         self.q.put("{} Trade Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, amount, price))
 
-    def wallAlert(self, amount, price):
+    def wallAlert(self, amount, price, wallId):
         direction = "Added"
         if amount < 0:
             direction = "Pulled"
-        self.q.put("{} Wall Alert | {} {:.3f} @ {:.3f}".format(self,name,
-        direction, amount, price))
+        self.q.put("{} Wall Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, amount, price))
 
     def volumeAlert(self, amount):
         self.q.put("{} Volume Alert | {:.3f}".format(self.name, amount))
@@ -94,8 +91,8 @@ class Exchange(object):
 
 class Bitstamp(Exchange):
     def __init__(self, keepAlive, queue, pusherKey='de504dc5763aeef9ff52'):
-        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=5,
-                          volumeThreshold=25, wallThreshold=50)
+        Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=100,
+                          volumeThreshold=250, wallThreshold=500)
 
         self.pusherKey = pusherKey
         self.pusher = twistedpusher.Client(key=self.pusherKey)
