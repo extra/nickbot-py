@@ -68,7 +68,6 @@ class Exchange(object):
         exit("ABORT: define orderDel in subclass")
 
     def findWalls(self):
-        print "Searching!"
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
             #print "New Order: %i\n" % order[0]  # TODO : add alert
@@ -131,6 +130,7 @@ class Bitstamp(Exchange):
         # TODO fix above (separate lines)
 
         # TODO config alert amount
+        print "Order {}: {} @ {} ({})".format(tradeId, amount, price, self.lastTrade)
         if amount >= self.thresholdWall and (price < self.lastTrade + 15 and
                                              price > self.lastTrade - 15):
             self.orderBook.add((tradeId, tradeType, price, amount))
