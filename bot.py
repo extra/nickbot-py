@@ -46,7 +46,6 @@ class Nickbot(object):
             c.join(channel)
 
     def on_join(self, c, e):
-        print "joined"
         self.msg_all("hello")
 
     def on_disconnect(self, c, e):
@@ -61,13 +60,18 @@ class Nickbot(object):
         self.parse_msg(e, e.arguments[0])
 
     def parse_msg(self, e, cmd):
-        print "parsing {}".format(cmd)
-
+        #print "parsing {}".format(cmd)
+        nick = e.source.nick
+        cmd = cmd.split(" ", 1)
+        if cmd[0] == "!help":
+            # TODO : msg reply (not all)
+            self.msg_all("nickbotv2| new and improved, more features coming soon")
 
 nick = Nickbot("nickbotv2", "chat.freenode.net", 6667)
 
 ## btc config ##
 
+# TODO fix this don't use threads
 #stamp = exch.Bitstamp(nick.msg_all) 
 stamp = threading.Thread(target=exch.Bitstamp, args=(True,q,))
 stamp.daemon = True
