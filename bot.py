@@ -21,7 +21,7 @@ class Nickbot(object):
         self.nick = nick
         self.server = server
         self.port = port
-        self.channels = ["#testmybot"]
+        self.channels = ["#bitcointraders","#testmybot"]
         self.exch = exchDict
         self.c = None
 
@@ -72,32 +72,37 @@ class Nickbot(object):
         cmd = data.split(" ", 3)
         if cmd[0] == "!help":
             # TODO : msg reply (not all)
-            self.msg_all("nickbotv2| new and improved, more features coming soon")
+            self.msg_all("nickbotv2| new and improved, more features coming soon; PM extra with suggestions")
         elif cmd[0] == "!wall":
-            amount = int(cmd[2])
-            if amount >= 250 and amount <= 5000:
-                if cmd[1] in self.exch:
-                    self.exch[cmd[1]].setWall(cmd[2])
+            if len(cmd) > 2:
+                amount = int(cmd[2])
+                if amount >= 250 and amount <= 5000:
+                    if cmd[1] in self.exch:
+                        self.exch[cmd[1]].setWall(cmd[2])
         elif cmd[0] == "!price":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 self.exch[cmd[1]].priceQuery()
             else:
                 for exch in self.exch:
-                    exch.priceQuery()
+                    self.exch[exch].priceQuery()
         elif cmd[0] == "!volume":
             if len(cmd) > 1 and cmd[1] in self.exch:
-                volume = int(cmd[2])
+                if len(cmd) > 2:
+                    volume = int(cmd[2])
+                else:
+                    volume = 1
                 if volume < 1 or volume > 1440:
                     return
                 self.exch[cmd[1]].volumeQuery(volume)
             else:
-                volume = int(cmd[1])
+                if len(cmd) > 1:
+                    volume = int(cmd[1])
+                else:
+                    volume = 1
                 if volume < 1 or volume > 1440:
                     return
                 for exch in self.exch:
-                    exch.volumeQuery(volume)
-
-
+                    self.exch[exch].volumeQuery(volume)
 
 ## btc config ##
 

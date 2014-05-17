@@ -30,7 +30,12 @@ class Exchange(object):
                                       5, 1)}
         self.volumeTimer = RepeatEvent(60, self.updateVolume)
 
-        self.lastTrade = 0
+        r = requests.get( "https://www.bitstamp.net/api/ticker/" )
+        try:
+            data = r.json()
+            self.lastTrade = float( data['last'] )
+        except ValueError:
+            self.lastTrade = 0.0
 
         self.quietWalls = { (0,) }
         self.thresholdWall = float(wallThreshold)
@@ -59,9 +64,6 @@ class Exchange(object):
         else:
             self.quiet = False
             self.q = self.quietQ
-
-    def getVolume(self, interval):
-        return self.volume[interval]
 
     def updateVolume(self):
         for n in [1440, 720, 360, 180, 120, 60, 30, 15, 10, 5]:
@@ -131,7 +133,8 @@ class Exchange(object):
         self.q.put("{} Price | ${}".format(self.name, self.lastTrade))
 
     def volumeQuery(self, interval):
-        self.q.put("{} {}m Volume | {} BTC".format(self.name, interval, self.getVolume(interval)))
+        if interval in self.volume:
+            self.q.put("{} {}m Volume | {} BTC".format(self.name, interval, self.volume[interval]))
 
     def wallAlert(self, oldAmount, amount, price, wallId):
         if (price,) in self.quietWalls:
@@ -200,10 +203,11 @@ class Bitfinex(Exchange):
         r = requests.get( self.base + 'pubticker/BTCUSD' )
         try:
             data = r.json()
+            self.lastTrade = float(data['last_price'])
         except ValueError:
+            self.lastTrade = 0.0
             print "Couldn't get finex price"
 
-        self.lastTrade = float(data['last_price'])
 
         time.sleep(10) # check in iRC? or not
 
