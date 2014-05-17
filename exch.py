@@ -16,7 +16,7 @@ from util import RepeatEvent
 #logging.basicConfig(level=logging.DEBUG)
 
 class Exchange(object):
-    def __init__(self, name, queue, currency="USD", tradeThreshold=100,
+    def __init__(self, name, queue, currency="$", tradeThreshold=100,
                  volumeThreshold=250, wallThreshold=500, priceSens=15):
         self.name = name
         self.currency = currency
@@ -131,10 +131,10 @@ class Exchange(object):
         self.oldBook = self.orderBook.copy()  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
-        self.q.put("{} Trade Alert | {} {:.3f} BTC @ ${:.3f}".format(self.name, direction, amount, price))
+        self.q.put("{} Trade Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, amount, self.currency, price))
 
     def priceQuery(self):
-        self.q.put("{} Price | ${:.3f}".format(self.name, self.lastTrade))
+        self.q.put("{} Price | {}{:.3f}".format(self.name, self.currency, self.lastTrade))
 
     def volumeQuery(self, interval):
         if interval in self.volume:
@@ -148,7 +148,7 @@ class Exchange(object):
             direction = "Pulled"
         elif amount == 0:
             direction = "Eaten"
-        self.q.put("{} Wall Alert | {} {:.3f} BTC @ ${:.3f}".format(self.name, direction, oldAmount, price))
+        self.q.put("{} Wall Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, oldAmount, self.currency, price))
 
     def volumeAlert(self, amount):
         self.q.put("{} Volume Alert | {:.3f} BTC".format(self.name, amount))
@@ -275,7 +275,7 @@ class Huobi(Exchange):
     def __init__(self, queue):
         Exchange.__init__(self, "Huobi", queue, tradeThreshold=100,
                           volumeThreshold=250, wallThreshold=1000,
-                          priceSens=100)
+                          priceSens=100, currency='¥')
 
         #self.base = apiBase 
         self.base = "https://market.huobi.com/staticmarket/"
