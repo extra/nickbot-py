@@ -3,9 +3,10 @@ import logging
 import json
 import Queue
 from sys import exit
-from time import sleep
+import time
 
 from twisted.internet import reactor
+import requests
 
 # local imports
 import twistedpusher
@@ -31,8 +32,10 @@ class Exchange(object):
         self.lastTrade = 0
 
         self.thresholdWall = float(wallThreshold)
-        self.orderBook = {(0, 0, 0, 0)}  # { (id, type, price, amount) }
-        self.oldBook = {(0, 0, 0, 0)}  # for set comparisons
+        self.orderPrices = { 0.0: 0.0 }
+        # use hash b/c order amounts aren't constant
+        self.orderBook = {(0, 0, 0)}  # { (id, type, price) }
+        self.oldBook = {(0, 0, 0)}  # for set comparisons
         self.wallTimer = RepeatEvent(15, self.findWalls)
         # orderBook is a set of 3-tuples
         # use set membership tests to parse wall data
@@ -55,35 +58,61 @@ class Exchange(object):
         else:
             self.iterVolume += 1
 
-    def gotVolume(self):
-        exit("ABORT: define setVolume in subclass")
+    def gotVolume(self, amount):
+        self.volume[1] += amount
 
-    def gotTrade(self):
-        exit("ABORT: define setTrade in subclass")
+    def gotTrade(self, price, amount, tradeType=None):
+        # TODO handle None
+        if tradeType == None:
+            if price > self.lastTrade:
+                tType = "Buy"
+            elif price < self.lastTrade:
+                tType = "Sell"
+            else:
+                tType = ""
+        else:
+            if tradeType == "1":
+                tType = "Buy"
+            else:
+                tType = "Sell"
+        if amount >= self.thresholdTrade:
+            self.tradeAlert(amount, price, tType)
+        self.lastTrade = price
 
-    def orderAdd(self):
-        exit("ABORT: define orderAdd in subclass")
+    def orderAdd(self, price, amount, orderType, orderId=None):
+        # TODO handle None
+        if amount >= self.thresholdWall and (price < self.lastTrade + 15 and
+                                             price > self.lastTrade - 15):
+            self.orderBook.add((orderId, orderType, price))
+            self.orderPrices[price] = [amount, 0]
 
-    def orderDel(self):
-        exit("ABORT: define orderDel in subclass")
+    def orderDel(self, price, amount, orderType, orderId=None):
+        # TODO handle None
+        self.orderBook.discard( (orderId, orderType, price) )
+        self.orderPrices[price][1] = amount
+        # TODO : when to prune dict?
 
     def findWalls(self):
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
-            self.wallAlert( order[3], order[2], order[1] )
+            amount = self.orderPrices[order[2]]
+            self.wallAlert( amount[0], amount[1], order[2], order[0] )
         for order in self.oldBook - self.orderBook:
             # in oldBook, but not in orderBook (wall pulled)
-            self.wallAlert( -1 *order[3], order[2], order[1] )
+            amount = self.orderPrices[order[2]]
+            self.wallAlert( -1 * amount[0], -1 * amount[1], order[2], order[0] )
         self.oldBook = self.orderBook.copy()  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
         self.q.put("{} Trade Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, amount, price))
 
-    def wallAlert(self, amount, price, wallId):
+    def wallAlert(self, oldAmount, amount, price, wallId):
         direction = "Added"
         if amount < 0:
             direction = "Pulled"
-        self.q.put("{} Wall Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, amount, price))
+        elif amount == 0:
+            direction = "Eaten"
+        self.q.put("{} Wall Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, oldAmount, price))
 
     def volumeAlert(self, amount):
         self.q.put("{} Volume Alert | {:.3f}".format(self.name, amount))
@@ -100,39 +129,100 @@ class Bitstamp(Exchange):
         self.tradeChannel = self.pusher.subscribe('live_trades')
         self.orderChannel = self.pusher.subscribe('live_orders')
 
-        self.tradeChannel.bind('trade', self.gotTrade)
-        self.tradeChannel.bind('trade', self.gotVolume)
-        self.orderChannel.bind('order_created', self.orderAdd)
-        self.orderChannel.bind('order_deleted', self.orderDel)
+        self.tradeChannel.bind('trade', self.getTrade)
+        self.tradeChannel.bind('trade', self.getVolume)
+        self.orderChannel.bind('order_created', self.getOrderAdd)
+        self.orderChannel.bind('order_deleted', self.getOrderDel)
         print "Exchange Initiated"
         if keepAlive:
             reactor.run(installSignalHandlers=0)
 
-    def gotVolume(self, event):
+    def getVolume(self, event):
         data = json.loads(event['data'].encode('utf-8'))
         id, price, amount = int(data['id']), float(data['price']), float(data['amount'])
-        self.volume[1] += amount
+        self.gotVolume(amount)
 
-    def gotTrade(self, event):
+    def getTrade(self, event):
         data = json.loads(event['data'].encode('utf-8'))
         id, price, amount = int(data['id']), float(data['price']), float(data['amount'])
-        self.lastTrade = price
-        if amount >= self.thresholdTrade:
-            # TODO alert here
-            self.tradeAlert(amount, price, "BUYSELL")
+        self.gotTrade( price, amount )
 
-    def orderAdd(self, event):
+    def getOrderAdd(self, event):
         data = json.loads(event['data'].encode('utf-8'))
-        tradeId, price, amount, tradeType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
-        # TODO fix above (separate lines)
+        tradeId, price, amount, orderType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
 
-        # TODO config alert amount
-        if amount >= float(self.thresholdWall) and (price < self.lastTrade + 15 and
-                                             price > self.lastTrade - 15):
-            self.orderBook.add((tradeId, tradeType, price, amount))
+        self.orderAdd( price, amount, orderType, orderId=tradeId )
 
-    def orderDel(self, event):
+    def getOrderDel(self, event):
         data = json.loads(event['data'].encode('utf-8'))
-        tradeId, price, amount, tradeType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
+        tradeId, price, amount, orderType = int(data['id']), float(data['price']), float(data['amount']), int(data['order_type'])
 
-        self.orderBook.discard((tradeId, tradeType, price, amount))
+        self.orderDel( price, amount, orderType, orderId=tradeId )
+
+
+class Bitfinex(Exchange):
+    # TODO  SWAP
+    def __init__(self, keepAlive, queue, apiBase):
+        Exchange.__init__(self, "Bitfinex", queue, tradeThreshold=100,
+                          volumeThreshold=250, wallThreshold=1000)
+
+        self.base = apiBase
+        self.tradeTime = round(time.time())
+        self.pollTrade = RepeatEvent(3, self.getTrade)
+        self.pollOrders = RepeatEvent(3, self.getOrders)
+
+    def getTrade(self):
+        payload = {'timestamp': self.tradeTime, 'limit_trades': '250'}
+        # TODO how many?
+        r = requests.get( self.base + 'trades/btcusd', params=payload,
+        verify=False)
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Bitfinex"
+            return
+
+        self.tradeTime = int(data[-1]["timestamp"]) + 1
+        for trade in data:
+            price, amount, which = float(trade['price']),
+            float(trade['amount']), trade['type']
+            self.gotTrade(price, amount, tradeType=which)
+            self.gotVolume(amount)
+
+    def getOrders(self):
+        payload = {'limit_bids': '250', 'limit_asks': '250'}
+        r = requests.get( self.base + 'book/btcusd', params=payload,
+        verify=False)
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Bitfinex"
+            return
+
+        for order in self.orderBook:
+            if order[2] == 0:
+                oType = "bids"
+            else:
+                oType = "asks"
+            
+            found = True
+            for elm in data[oType]:
+                price = float(elm['price'])
+                amount = float(elm['amount'])
+                original = self.orderPrices[order[2]]
+                if price == order[2]:
+                    if amount < original:
+                        if 100 * amount / original <= 10:
+                            self.orderDel( order[2], amount, order[1] )
+                else:
+                    self.orderDel( order[2], original, order[1] )
+
+        for bid in data['bids']:
+            price = float(bid['price'])
+            amount = float(bid['amount'])
+            self.orderAdd( price, amount, 0 ) 
+
+        for ask in data['asks']:
+            price = float(ask['price'])
+            amount = float(ask['amount'])
+            self.orderAdd( price, amount, 1 )
