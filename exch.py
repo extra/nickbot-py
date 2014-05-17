@@ -5,7 +5,6 @@ import Queue
 from sys import exit
 import time
 
-from twisted.internet import reactor
 import requests
 
 # local imports
@@ -20,6 +19,8 @@ class Exchange(object):
         self.name = name
         self.currency = currency
         self.q = queue
+        self.quiet = False
+        self.quietQ = self.q
 
         self.thresholdTrade = float(tradeThreshold)
 
@@ -31,6 +32,7 @@ class Exchange(object):
 
         self.lastTrade = 0
 
+        self.quietWalls = { (0,) }
         self.thresholdWall = float(wallThreshold)
         self.orderPrices = { 0.0: [0.0,0.0] }
         # use hash b/c order amounts aren't constant
@@ -40,6 +42,23 @@ class Exchange(object):
         # orderBook is a set of 3-tuples
         # use set membership tests to parse wall data
         # TODO : if order deleted w/0 volume then probably filled, else pulled
+
+    def setTrade(self, amount):
+        self.thresholdTrade = amount
+
+    def setVolume(self, amount):
+        self.thresholdVolume = amount
+
+    def setWall(self, amount):
+        self.thresholdWall = float(amount)
+
+    def toggleQuiet(self):
+        if not self.quiet:
+            self.quiet = True
+            self.q = Queue.Queue()
+        else:
+            self.quiet = False
+            self.q = self.quietQ
 
     def getVolume(self, interval):
         return self.volume[interval]
@@ -90,8 +109,8 @@ class Exchange(object):
         # TODO handle None
         self.orderBook.discard( (orderId, orderType, price) )
         if price in self.orderPrices:
-            old = self.orderPrices[price][0]
-            self.orderPrices[price] = [old,amount]
+            oldAmount = self.orderPrices[price][0]
+            self.orderPrices[price] = [oldAmount,amount]
         # TODO : when to prune dict?
 
     def findWalls(self):
@@ -108,7 +127,15 @@ class Exchange(object):
     def tradeAlert(self, amount, price, direction):
         self.q.put("{} Trade Alert | {} {:.3f} BTC @ ${:.3f}".format(self.name, direction, amount, price))
 
+    def priceQuery(self):
+        self.q.put("{} Price | ${}".format(self.name, self.lastTrade))
+
+    def volumeQuery(self, interval):
+        self.q.put("{} {}m Volume | {} BTC".format(self.name, interval, self.getVolume(interval)))
+
     def wallAlert(self, oldAmount, amount, price, wallId):
+        if (price,) in self.quietWalls:
+            return
         direction = "Added"
         if amount < 0:
             direction = "Pulled"
@@ -121,7 +148,7 @@ class Exchange(object):
 
 
 class Bitstamp(Exchange):
-    def __init__(self, keepAlive, queue, pusherKey='de504dc5763aeef9ff52'):
+    def __init__(self, queue, pusherKey='de504dc5763aeef9ff52'):
         Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=100,
                           volumeThreshold=250, wallThreshold=500)
 
@@ -136,8 +163,6 @@ class Bitstamp(Exchange):
         self.orderChannel.bind('order_created', self.getOrderAdd)
         self.orderChannel.bind('order_deleted', self.getOrderDel)
         print "Bitstamp Initialized"
-        if keepAlive:
-            reactor.run(installSignalHandlers=0)
 
     def getVolume(self, event):
         data = json.loads(event['data'].encode('utf-8'))
@@ -164,7 +189,7 @@ class Bitstamp(Exchange):
 
 class Bitfinex(Exchange):
     # TODO  SWAP
-    def __init__(self, keepAlive, queue):
+    def __init__(self, queue):
         Exchange.__init__(self, "Bitfinex", queue, tradeThreshold=100,
                           volumeThreshold=250, wallThreshold=1000)
 
@@ -185,9 +210,6 @@ class Bitfinex(Exchange):
         self.pollTrade = RepeatEvent(3, self.getTrade)
         self.pollOrders = RepeatEvent(3, self.getOrders)
         print "Bitfinex Initialized"
-        if keepAlive:
-            pass
-            #reactor.run(installSignalHandlers=0)
 
     def getTrade(self):
         payload = {'timestamp': self.tradeTime, 'limit_trades': '250'}
@@ -202,8 +224,7 @@ class Bitfinex(Exchange):
         if len(data) > 0:
             self.tradeTime = int(data[-1]["timestamp"]) + 1
             for trade in data:
-                price, amount, which = float(trade['price']),
-                float(trade['amount']), trade['type']
+                price, amount, which = float(trade['price']), float(trade['amount']), trade['type']
                 self.gotTrade(price, amount, tradeType=which)
                 self.gotVolume(amount)
 
@@ -226,7 +247,7 @@ class Bitfinex(Exchange):
             for elm in data[oType]:
                 price = float(elm['price'])
                 amount = float(elm['amount'])
-                original = self.orderPrices[order[2]]
+                original = self.orderPrices[order[2]][0]
                 if price == order[2]:
                     if amount < original:
                         if 100 * amount / original <= 10:

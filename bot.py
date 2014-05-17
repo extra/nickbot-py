@@ -5,6 +5,9 @@ import Queue
 import irc.client
 import irc.logging
 
+from twisted.internet import task
+from twisted.internet import reactor
+
 # local imports
 import exch
 
@@ -13,12 +16,14 @@ q = Queue.Queue(maxsize=0)
 
 class Nickbot(object):
 
-    def __init__(self, nick, server, port=6667):
+    def __init__(self, nick, server, exchDict, port=6667):
         self.client = irc.client.IRC()
         self.nick = nick
         self.server = server
         self.port = port
         self.channels = ["#testmybot"]
+        self.exch = exchDict
+        self.c = None
 
     def start(self):
         try:
@@ -37,8 +42,9 @@ class Nickbot(object):
         self.c.add_global_handler("pubmsg", self.on_pubmsg)
 
     def msg_all(self, msg):
-        for channel in self.channels:
-            self.c.privmsg(channel, msg)  # TODO use privmsg many
+        if self.c != None:
+            for channel in self.channels:
+                self.c.privmsg(channel, msg)  # TODO use privmsg many
 
     def on_connect(self, c, e):
         print "connected"
@@ -60,35 +66,64 @@ class Nickbot(object):
     def on_pubmsg(self, c, e):
         self.parse_msg(e, e.arguments[0])
 
-    def parse_msg(self, e, cmd):
+    def parse_msg(self, e, data):
         #print "parsing {}".format(cmd)
         nick = e.source.nick
-        cmd = cmd.split(" ", 1)
+        cmd = data.split(" ", 3)
         if cmd[0] == "!help":
             # TODO : msg reply (not all)
             self.msg_all("nickbotv2| new and improved, more features coming soon")
+        elif cmd[0] == "!wall":
+            amount = int(cmd[2])
+            if amount >= 250 and amount <= 5000:
+                if cmd[1] in self.exch:
+                    self.exch[cmd[1]].setWall(cmd[2])
+        elif cmd[0] == "!price":
+            if len(cmd) > 1 and cmd[1] in self.exch:
+                self.exch[cmd[1]].priceQuery()
+            else:
+                for exch in self.exch:
+                    exch.priceQuery()
+        elif cmd[0] == "!volume":
+            if len(cmd) > 1 and cmd[1] in self.exch:
+                volume = int(cmd[2])
+                if volume < 1 or volume > 1440:
+                    return
+                self.exch[cmd[1]].volumeQuery(volume)
+            else:
+                volume = int(cmd[1])
+                if volume < 1 or volume > 1440:
+                    return
+                for exch in self.exch:
+                    exch.volumeQuery(volume)
 
-nick = Nickbot("nickbotv2", "chat.freenode.net", 6667)
+
 
 ## btc config ##
 
-# TODO fix this don't use threads
-#stamp = exch.Bitstamp(nick.msg_all) 
-stamp = threading.Thread(target=exch.Bitstamp, args=(True,q))
-stamp.daemon = True
-stamp.start()
+stamp = exch.Bitstamp(q)
+finex = exch.Bitfinex(q)
 
-finex = threading.Thread(target=exch.Bitfinex, args=(True,q,))
-finex.daemon = True
-finex.start()
+exchDict = { "bitstamp" : stamp, "bitfinex" : finex }
 
-nick.start()
+nick = Nickbot("nickbotv2", "chat.freenode.net", exchDict)
 
-while True:
+reactor.callLater(5, nick.start)
+
+def pollQ():
     try:
         msg = q.get(False)
         nick.msg_all( msg )
     except Queue.Empty:
-        #do nothing
-        None
+        pass
+
+def pollIRC():
     nick.client.process_once(0.2)
+
+queueTask = task.LoopingCall(pollQ)
+ircTask = task.LoopingCall(pollIRC)
+
+queueTask.start(0.5) # TODO better implementation
+ircTask.start(0.5)
+
+reactor.run()
