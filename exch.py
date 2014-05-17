@@ -282,14 +282,19 @@ class Huobi(Exchange):
         # TODO add http(s) back...timeouts fix?
         self.tradeTime = None
 
-        r = requests.get( self.base + 'ticker_btc_json.js' )
         try:
+            r = requests.get( self.base + 'ticker_btc_json.js' )
             data = r.json()
             self.lastTrade = float(data['ticker']['last'])
         except ValueError:
             self.lastTrade = 0.0
             print "Couldn't get huobi price"
-
+        except requests.exceptions.Timeout:
+            self.lastTrade = 0.0
+            print "Huobi Price Timeout"
+        except requests.exceptions.ConnectionError:
+            self.lastTrade = 0.0
+            print "Huobi Price Error"
 
         self.pollTrade = RepeatEvent(20, self.getTrade)
         time.sleep(5) # Hoobi timing out??
@@ -307,7 +312,7 @@ class Huobi(Exchange):
             print "Huobi Trade Timeout"
             return
         except requests.exceptions.ConnectionError:
-            print "Huobi Orders Error"
+            print "Huobi Trade Error"
             return
 
         if len(data) > 0:
