@@ -32,7 +32,7 @@ class Exchange(object):
         self.lastTrade = 0
 
         self.thresholdWall = float(wallThreshold)
-        self.orderPrices = { 0.0: 0.0 }
+        self.orderPrices = { 0.0: [0.0,0.0] }
         # use hash b/c order amounts aren't constant
         self.orderBook = {(0, 0, 0)}  # { (id, type, price) }
         self.oldBook = {(0, 0, 0)}  # for set comparisons
@@ -84,12 +84,14 @@ class Exchange(object):
         if amount >= self.thresholdWall and (price < self.lastTrade + 15 and
                                              price > self.lastTrade - 15):
             self.orderBook.add((orderId, orderType, price))
-            self.orderPrices[price] = [amount, 0]
+            self.orderPrices[price] = [amount, amount]
 
     def orderDel(self, price, amount, orderType, orderId=None):
         # TODO handle None
         self.orderBook.discard( (orderId, orderType, price) )
-        self.orderPrices[price][1] = amount
+        if price in self.orderPrices:
+            old = self.orderPrices[price][0]
+            self.orderPrices[price] = [old,amount]
         # TODO : when to prune dict?
 
     def findWalls(self):
@@ -104,7 +106,7 @@ class Exchange(object):
         self.oldBook = self.orderBook.copy()  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
-        self.q.put("{} Trade Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, amount, price))
+        self.q.put("{} Trade Alert | {} {:.3f} BTC @ ${:.3f}".format(self.name, direction, amount, price))
 
     def wallAlert(self, oldAmount, amount, price, wallId):
         direction = "Added"
@@ -112,10 +114,10 @@ class Exchange(object):
             direction = "Pulled"
         elif amount == 0:
             direction = "Eaten"
-        self.q.put("{} Wall Alert | {} {:.3f} @ {:.3f}".format(self.name, direction, oldAmount, price))
+        self.q.put("{} Wall Alert | {} {:.3f} BTC @ ${:.3f}".format(self.name, direction, oldAmount, price))
 
     def volumeAlert(self, amount):
-        self.q.put("{} Volume Alert | {:.3f}".format(self.name, amount))
+        self.q.put("{} Volume Alert | {:.3f} BTC".format(self.name, amount))
 
 
 class Bitstamp(Exchange):
@@ -133,7 +135,7 @@ class Bitstamp(Exchange):
         self.tradeChannel.bind('trade', self.getVolume)
         self.orderChannel.bind('order_created', self.getOrderAdd)
         self.orderChannel.bind('order_deleted', self.getOrderDel)
-        print "Exchange Initiated"
+        print "Bitstamp Initialized"
         if keepAlive:
             reactor.run(installSignalHandlers=0)
 
@@ -162,44 +164,59 @@ class Bitstamp(Exchange):
 
 class Bitfinex(Exchange):
     # TODO  SWAP
-    def __init__(self, keepAlive, queue, apiBase):
+    def __init__(self, keepAlive, queue):
         Exchange.__init__(self, "Bitfinex", queue, tradeThreshold=100,
                           volumeThreshold=250, wallThreshold=1000)
 
-        self.base = apiBase
+        #self.base = apiBase 
+        self.base = "https://api.bitfinex.com/v1/"
         self.tradeTime = round(time.time())
+
+        r = requests.get( self.base + 'pubticker/BTCUSD' )
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't get finex price"
+
+        self.lastTrade = float(data['last_price'])
+
+        time.sleep(10) # check in iRC? or not
+
         self.pollTrade = RepeatEvent(3, self.getTrade)
         self.pollOrders = RepeatEvent(3, self.getOrders)
+        print "Bitfinex Initialized"
+        if keepAlive:
+            pass
+            #reactor.run(installSignalHandlers=0)
 
     def getTrade(self):
         payload = {'timestamp': self.tradeTime, 'limit_trades': '250'}
         # TODO how many?
-        r = requests.get( self.base + 'trades/btcusd', params=payload,
-        verify=False)
+        r = requests.get( self.base + 'trades/btcusd', params=payload )
         try:
             data = r.json()
         except ValueError:
             print "Couldn't decode Bitfinex"
             return
 
-        self.tradeTime = int(data[-1]["timestamp"]) + 1
-        for trade in data:
-            price, amount, which = float(trade['price']),
-            float(trade['amount']), trade['type']
-            self.gotTrade(price, amount, tradeType=which)
-            self.gotVolume(amount)
+        if len(data) > 0:
+            self.tradeTime = int(data[-1]["timestamp"]) + 1
+            for trade in data:
+                price, amount, which = float(trade['price']),
+                float(trade['amount']), trade['type']
+                self.gotTrade(price, amount, tradeType=which)
+                self.gotVolume(amount)
 
     def getOrders(self):
         payload = {'limit_bids': '250', 'limit_asks': '250'}
-        r = requests.get( self.base + 'book/btcusd', params=payload,
-        verify=False)
+        r = requests.get( self.base + 'book/btcusd', params=payload)
         try:
             data = r.json()
         except ValueError:
             print "Couldn't decode Bitfinex"
             return
 
-        for order in self.orderBook:
+        for order in self.oldBook: # stops set change during iteration
             if order[2] == 0:
                 oType = "bids"
             else:

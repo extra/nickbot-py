@@ -46,7 +46,8 @@ class Nickbot(object):
             c.join(channel)
 
     def on_join(self, c, e):
-        self.msg_all("hello")
+        pass
+        #self.msg_all("hello")
 
     def on_disconnect(self, c, e):
         print "DISCONNECTED {}".format(e.arguments[0])
@@ -73,9 +74,13 @@ nick = Nickbot("nickbotv2", "chat.freenode.net", 6667)
 
 # TODO fix this don't use threads
 #stamp = exch.Bitstamp(nick.msg_all) 
-stamp = threading.Thread(target=exch.Bitstamp, args=(True,q,))
+stamp = threading.Thread(target=exch.Bitstamp, args=(True,q))
 stamp.daemon = True
 stamp.start()
+
+finex = threading.Thread(target=exch.Bitfinex, args=(True,q,))
+finex.daemon = True
+finex.start()
 
 nick.start()
 
