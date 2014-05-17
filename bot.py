@@ -76,7 +76,10 @@ class Nickbot(object):
             self.msg_all("nickbotv2| new and improved, more features coming soon; PM extra with suggestions")
         elif cmd[0] == "!wall":
             if len(cmd) > 2:
-                amount = int(cmd[2])
+                try:
+                    amount = int(cmd[2])
+                except TypeError:
+                    return
                 if amount >= 250 and amount <= 5000:
                     if cmd[1] in self.exch:
                         self.exch[cmd[1]].setWall(cmd[2])
@@ -89,7 +92,10 @@ class Nickbot(object):
         elif cmd[0] == "!volume":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 if len(cmd) > 2:
-                    volume = int(cmd[2])
+                    try:
+                        volume = int(cmd[2])
+                    except TypeError:
+                        return
                 else:
                     volume = 1
                 if volume < 1 or volume > 1440:
@@ -97,7 +103,10 @@ class Nickbot(object):
                 self.exch[cmd[1]].volumeQuery(volume)
             else:
                 if len(cmd) > 1:
-                    volume = int(cmd[1])
+                    try:
+                        volume = int(cmd[1])
+                    except TypeError:
+                        return
                 else:
                     volume = 1
                 if volume < 1 or volume > 1440:

@@ -297,11 +297,17 @@ class Huobi(Exchange):
         print "Huobi Initialized"
 
     def getTrade(self):
-        r = requests.get( self.base + 'detail_btc_json.js')
         try:
+            r = requests.get( self.base + 'detail_btc_json.js')
             data = r.json()
         except ValueError:
             print "Couldn't decode Huobi"
+            return
+        except requests.exceptions.Timeout:
+            print "Huobi Trade Timeout"
+            return
+        except requests.exceptions.ConnectionError:
+            print "Huobi Orders Error"
             return
 
         if len(data) > 0:
@@ -321,11 +327,17 @@ class Huobi(Exchange):
             self.tradeTime = time.strptime(data['trades'][0]['time'], "%H:%M:%S")
 
     def getOrders(self):
-        r = requests.get( self.base + 'depth_btc_json.js' )
         try:
+            r = requests.get( self.base + 'depth_btc_json.js' )
             data = r.json()
         except ValueError:
             print "Couldn't decode Huobi"
+            return
+        except requests.exceptions.Timeout:
+            print "Huobi Orders Timeout"
+            return
+        except requests.exceptions.ConnectionError:
+            print "Huobi Orders Error"
             return
 
         for order in self.oldBook: # stops set change during iteration
