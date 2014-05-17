@@ -22,6 +22,7 @@ class Nickbot(object):
         self.server = server
         self.port = port
         self.channels = ["#bitcointraders","#testmybot"]
+        #self.channels = ["#testmybot"]
         self.exch = exchDict
         self.c = None
 
@@ -108,8 +109,9 @@ class Nickbot(object):
 
 stamp = exch.Bitstamp(q)
 finex = exch.Bitfinex(q)
+huobi = exch.Huobi(q)
 
-exchDict = { "bitstamp" : stamp, "bitfinex" : finex }
+exchDict = { "bitstamp" : stamp, "bitfinex" : finex, "huobi" : huobi }
 
 nick = Nickbot("nickbotv2", "chat.freenode.net", exchDict)
 

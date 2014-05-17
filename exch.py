@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# vim: set fileencoding=utf-8 :
 # exchange code
 import logging
 import json
@@ -15,12 +17,14 @@ from util import RepeatEvent
 
 class Exchange(object):
     def __init__(self, name, queue, currency="USD", tradeThreshold=100,
-                 volumeThreshold=250, wallThreshold=500):
+                 volumeThreshold=250, wallThreshold=500, priceSens=15):
         self.name = name
         self.currency = currency
         self.q = queue
         self.quiet = False
         self.quietQ = self.q
+
+        self.priceSens = priceSens
 
         self.thresholdTrade = float(tradeThreshold)
 
@@ -102,8 +106,8 @@ class Exchange(object):
 
     def orderAdd(self, price, amount, orderType, orderId=None):
         # TODO handle None
-        if amount >= self.thresholdWall and (price < self.lastTrade + 15 and
-                                             price > self.lastTrade - 15):
+        if amount >= self.thresholdWall and (price < self.lastTrade +
+            self.priceSens and price > self.lastTrade - self.priceSens):
             self.orderBook.add((orderId, orderType, price))
             self.orderPrices[price] = [amount, amount]
 
@@ -209,8 +213,6 @@ class Bitfinex(Exchange):
             print "Couldn't get finex price"
 
 
-        time.sleep(10) # check in iRC? or not
-
         self.pollTrade = RepeatEvent(3, self.getTrade)
         self.pollOrders = RepeatEvent(3, self.getOrders)
         print "Bitfinex Initialized"
@@ -267,4 +269,87 @@ class Bitfinex(Exchange):
         for ask in data['asks']:
             price = float(ask['price'])
             amount = float(ask['amount'])
+            self.orderAdd( price, amount, 1 )
+
+class Huobi(Exchange):
+    def __init__(self, queue):
+        Exchange.__init__(self, "Huobi", queue, tradeThreshold=100,
+                          volumeThreshold=250, wallThreshold=1000,
+                          priceSens=100)
+
+        #self.base = apiBase 
+        self.base = "https://market.huobi.com/staticmarket/"
+        self.tradeTime = None
+
+        r = requests.get( self.base + 'ticker_btc_json.js' )
+        try:
+            data = r.json()
+            self.lastTrade = float(data['ticker']['last'])
+        except ValueError:
+            self.lastTrade = 0.0
+            print "Couldn't get huobi price"
+
+
+        self.pollTrade = RepeatEvent(10, self.getTrade)
+        self.pollOrders = RepeatEvent(10, self.getOrders)
+        print "Huobi Initialized"
+
+    def getTrade(self):
+        r = requests.get( self.base + 'detail_btc_json.js')
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Huobi"
+            return
+
+        if len(data) > 0:
+            if self.tradeTime == None:
+                self.tradeTime = time.strptime(data['trades'][0]['time'], "%H:%M:%S")
+                print "Set time: {} {}".format(data['trades'][0]['time'],self.tradeTime)
+                return
+            for trade in data['trades']:
+                tradeTime, price, amount, which = time.strptime(trade['time'], "%H:%M:%S"), float(trade['price']), float(trade['amount']), trade['type']
+                if tradeTime > self.tradeTime:
+                    if which == u'买入':
+                        which = 1
+                    else:
+                        which = 0 # '卖出'
+                    self.gotTrade(price, amount, tradeType=which)
+                    self.gotVolume(amount)
+            self.tradeTime = time.strptime(data['trades'][0]['time'], "%H:%M:%S")
+
+    def getOrders(self):
+        r = requests.get( self.base + 'depth_btc_json.js' )
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Huobi"
+            return
+
+        for order in self.oldBook: # stops set change during iteration
+            if order[2] == 0:
+                oType = "bids"
+            else:
+                oType = "asks"
+            
+            found = True
+            for elm in data[oType]:
+                price = float(elm[0])
+                amount = float(elm[1])
+                original = self.orderPrices[order[2]][0]
+                if price == order[2]:
+                    if amount < original:
+                        if 100 * amount / original <= 10:
+                            self.orderDel( order[2], amount, order[1] )
+                else:
+                    self.orderDel( order[2], original, order[1] )
+
+        for bid in data['bids']:
+            price = float(bid[0])
+            amount = float(bid[1])
+            self.orderAdd( price, amount, 0 ) 
+
+        for ask in data['asks']:
+            price = float(ask[0])
+            amount = float(ask[1])
             self.orderAdd( price, amount, 1 )
