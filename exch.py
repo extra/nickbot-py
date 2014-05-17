@@ -131,10 +131,10 @@ class Exchange(object):
         self.oldBook = self.orderBook.copy()  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
-        self.q.put("{} Trade Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, amount, self.currency, price))
+        self.q.put(u"{} Trade Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, amount, self.currency, price))
 
     def priceQuery(self):
-        self.q.put("{} Price | {}{:.3f}".format(self.name, self.currency, self.lastTrade))
+        self.q.put(u"{} Price | {}{:.3f}".format(self.name, self.currency, self.lastTrade))
 
     def volumeQuery(self, interval):
         if interval in self.volume:
@@ -148,7 +148,7 @@ class Exchange(object):
             direction = "Pulled"
         elif amount == 0:
             direction = "Eaten"
-        self.q.put("{} Wall Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, oldAmount, self.currency, price))
+        self.q.put(u"{} Wall Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, oldAmount, self.currency, price))
 
     def volumeAlert(self, amount):
         self.q.put("{} Volume Alert | {:.3f} BTC".format(self.name, amount))
@@ -275,10 +275,11 @@ class Huobi(Exchange):
     def __init__(self, queue):
         Exchange.__init__(self, "Huobi", queue, tradeThreshold=100,
                           volumeThreshold=250, wallThreshold=1000,
-                          priceSens=100, currency='¥')
+                          priceSens=100, currency=u'¥')
 
         #self.base = apiBase 
-        self.base = "https://market.huobi.com/staticmarket/"
+        self.base = "http://market.huobi.com/staticmarket/"
+        # TODO add http(s) back...timeouts fix?
         self.tradeTime = None
 
         r = requests.get( self.base + 'ticker_btc_json.js' )
@@ -290,8 +291,9 @@ class Huobi(Exchange):
             print "Couldn't get huobi price"
 
 
-        self.pollTrade = RepeatEvent(10, self.getTrade)
-        self.pollOrders = RepeatEvent(10, self.getOrders)
+        self.pollTrade = RepeatEvent(20, self.getTrade)
+        time.sleep(5) # Hoobi timing out??
+        self.pollOrders = RepeatEvent(30, self.getOrders)
         print "Huobi Initialized"
 
     def getTrade(self):

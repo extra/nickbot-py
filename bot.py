@@ -3,7 +3,7 @@ import threading
 import Queue
 
 import irc.client
-import irc.logging
+import irc.buffer
 
 from twisted.internet import task
 from twisted.internet import reactor
