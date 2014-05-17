@@ -130,11 +130,11 @@ class Exchange(object):
         self.q.put("{} Trade Alert | {} {:.3f} BTC @ ${:.3f}".format(self.name, direction, amount, price))
 
     def priceQuery(self):
-        self.q.put("{} Price | ${}".format(self.name, self.lastTrade))
+        self.q.put("{} Price | ${:.3f}".format(self.name, self.lastTrade))
 
     def volumeQuery(self, interval):
         if interval in self.volume:
-            self.q.put("{} {}m Volume | {} BTC".format(self.name, interval, self.volume[interval]))
+            self.q.put("{} {}m Volume | {:.3f} BTC".format(self.name, interval, self.volume[interval]))
 
     def wallAlert(self, oldAmount, amount, price, wallId):
         if (price,) in self.quietWalls:
