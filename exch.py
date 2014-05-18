@@ -411,13 +411,14 @@ class BTCe(Exchange):
             if self.tradeTime == None:
                 self.tradeTime = int(data['btc_usd'][0]["timestamp"])
             for trade in data['btc_usd']:
-                price, amount, which = float(trade['price']), float(trade['amount']), trade['type']
-                if which == "ask":
-                    which = 0
-                elif which == "bid":
-                    which = 1
-                self.gotTrade(price, amount, tradeType=which)
-                self.gotVolume(amount)
+                price, amount, which, tradeTime = float(trade['price']), float(trade['amount']), trade['type'], int(trade['timestamp'])
+                if tradeTime > self.tradeTime:
+                    if which == "ask":
+                        which = 0
+                    elif which == "bid":
+                        which = 1
+                    self.gotTrade(price, amount, tradeType=which)
+                    self.gotVolume(amount)
             self.tradeTime = int(data['btc_usd'][0]["timestamp"])
 
     def getOrders(self):
