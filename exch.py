@@ -372,3 +372,85 @@ class Huobi(Exchange):
             price = float(ask[0])
             amount = float(ask[1])
             self.orderAdd( price, amount, 1 )
+
+class BTCe(Exchange):
+    def __init__(self, queue):
+        Exchange.__init__(self, "BTC-e", queue, tradeThreshold=100,
+                          volumeThreshold=250, wallThreshold=1000)
+
+        #self.base = apiBase 
+        self.base = "https://btc-e.com/api/3/"
+        self.tradeTime = None
+
+        r = requests.get( self.base + 'ticket/btc_usd' )
+        try:
+# TODO add exception checking everywhere
+            data = r.json()
+            self.lastTrade = float(data['btc_usd']['last'])
+        except ValueError:
+            self.lastTrade = 0.0
+            print "Couldn't get btc-e price"
+
+
+        self.pollTrade = RepeatEvent(3, self.getTrade)
+        self.pollOrders = RepeatEvent(3, self.getOrders)
+        print "Bitfinex Initialized"
+
+    def getTrade(self):
+        payload = {'limit': '250'}
+        # TODO how many?
+        r = requests.get( self.base + 'trades/btc_usd', params=payload )
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Bitfinex"
+            return
+
+        if len(data) > 0:
+            if self.tradeTime == None:
+                self.tradeTime = int(data[0]["timestamp"])
+            for trade in data['btc_usd']:
+                price, amount, which = float(trade['price']), float(trade['amount']), trade['type']
+                if which == "ask":
+                    which = 0
+                elif which == "bid":
+                    which = 1
+                self.gotTrade(price, amount, tradeType=which)
+                self.gotVolume(amount)
+            self.tradeTime = int(data[0]["timestamp"])
+
+    def getOrders(self):
+        payload = {'limit': '250'}
+        r = requests.get( self.base + 'depth/btc_usd/', params=payload)
+        try:
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Bitfinex"
+            return
+
+        for order in self.oldBook: # stops set change during iteration
+            if order[2] == 0:
+                oType = "bids"
+            else:
+                oType = "asks"
+            
+            for elm in data['btc_usd'][oType]:
+                price = float(elm[0])
+                amount = float(elm[1])
+                original = self.orderPrices[order[2]][0]
+                if price == order[2]:
+                    if amount < original:
+                        if 100 * amount / original <= 10:
+                            self.orderDel( order[2], amount, order[1] )
+                else:
+                    self.orderDel( order[2], original, order[1] )
+
+        for bid in data['btc_usd']['bids']:
+            price = float(bid[0])
+            amount = float(bid[1])
+            self.orderAdd( price, amount, 0 ) 
+
+        for ask in data['btc_usd']['asks']:
+            price = float(ask[0])
+            amount = float(ask[1])
+            self.orderAdd( price, amount, 1 )

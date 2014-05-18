@@ -119,8 +119,9 @@ class Nickbot(object):
 stamp = exch.Bitstamp(q)
 finex = exch.Bitfinex(q)
 huobi = exch.Huobi(q)
+btc-e = exch.BTCe(q)
 
-exchDict = { "bitstamp" : stamp, "bitfinex" : finex, "huobi" : huobi }
+exchDict = { "bitstamp" : stamp, "bitfinex" : finex, "huobi" : huobi, "btce" : btc-e }
 
 nick = Nickbot("nickbotv2", "chat.freenode.net", exchDict)
 
