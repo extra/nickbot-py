@@ -409,7 +409,7 @@ class BTCe(Exchange):
 
         if len(data) > 0:
             if self.tradeTime == None:
-                self.tradeTime = int(data[0]["timestamp"])
+                self.tradeTime = int(data['btc_usd'][0]["timestamp"])
             for trade in data['btc_usd']:
                 price, amount, which = float(trade['price']), float(trade['amount']), trade['type']
                 if which == "ask":
