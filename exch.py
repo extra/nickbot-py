@@ -395,7 +395,7 @@ class BTCe(Exchange):
 
         self.pollTrade = RepeatEvent(3, self.getTrade)
         self.pollOrders = RepeatEvent(3, self.getOrders)
-        print "Bitfinex Initialized"
+        print "BTC-e Initialized"
 
     def getTrade(self):
         payload = {'limit': '250'}
@@ -418,7 +418,7 @@ class BTCe(Exchange):
                     which = 1
                 self.gotTrade(price, amount, tradeType=which)
                 self.gotVolume(amount)
-            self.tradeTime = int(data[0]["timestamp"])
+            self.tradeTime = int(data['btc_usd'][0]["timestamp"])
 
     def getOrders(self):
         payload = {'limit': '250'}
