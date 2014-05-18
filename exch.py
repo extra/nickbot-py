@@ -151,7 +151,8 @@ class Exchange(object):
         self.q.put(u"{} Wall Alert | {} {:.3f} BTC @ {}{:.3f}".format(self.name, direction, oldAmount, self.currency, price))
 
     def volumeAlert(self, amount):
-        self.q.put("{} Volume Alert | {:.3f} BTC".format(self.name, amount))
+        # TODO add direction
+        self.q.put("{} Volume Alert | Last 60s {:.3f} BTC ({}{:.3f})".format(self.name, amount, self.currency, self.lastTrade))  
 
 
 class Bitstamp(Exchange):
