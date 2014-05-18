@@ -383,7 +383,7 @@ class BTCe(Exchange):
         self.base = "https://btc-e.com/api/3/"
         self.tradeTime = None
 
-        r = requests.get( self.base + 'ticket/btc_usd' )
+        r = requests.get( self.base + 'ticker/btc_usd' )
         try:
 # TODO add exception checking everywhere
             data = r.json()
