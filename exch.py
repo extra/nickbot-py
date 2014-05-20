@@ -98,7 +98,7 @@ class Exchange(object):
         else:
             if tradeType == "1":
                 tType = "Buy"
-            else:
+            elif tradeType == "0":
                 tType = "Sell"
         if amount >= self.thresholdTrade:
             self.tradeAlert(amount, price, tType)
@@ -229,7 +229,7 @@ class Bitfinex(Exchange):
             return
 
         if len(data) > 0:
-            self.tradeTime = int(data[-1]["timestamp"]) + 1
+            self.tradeTime = int(data[0]["timestamp"]) + 1
             for trade in data:
                 price, amount, which = float(trade['price']), float(trade['amount']), trade['type']
                 self.gotTrade(price, amount, tradeType=which)
