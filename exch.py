@@ -138,7 +138,7 @@ class Exchange(object):
 
     def volumeQuery(self, interval):
         if interval in self.volume:
-            self.q.put("{} {}m Volume | {:.3f} BTC".format(self.name, interval, self.volume[interval]))
+            self.q.put(u"{} {}m Volume | {:.3f} BTC".format(self.name, interval, self.volume[interval]))
 
     def wallAlert(self, oldAmount, amount, price, wallId):
         if (price,) in self.quietWalls:
@@ -152,7 +152,7 @@ class Exchange(object):
 
     def volumeAlert(self, amount):
         # TODO add direction
-        self.q.put("{} Volume Alert | Last 60s {:.3f} BTC ({}{:.3f})".format(self.name, amount, self.currency, self.lastTrade))  
+        self.q.put(u"{} Volume Alert | Last 60s {:.3f} BTC ({}{:.3f})".format(self.name, amount, self.currency, self.lastTrade))  
 
 
 class Bitstamp(Exchange):
@@ -298,7 +298,6 @@ class Huobi(Exchange):
             print "Huobi Price Error"
 
         self.pollTrade = RepeatEvent(20, self.getTrade)
-        time.sleep(5) # Hoobi timing out??
         self.pollOrders = RepeatEvent(30, self.getOrders)
         print "Huobi Initialized"
 
