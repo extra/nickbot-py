@@ -5,6 +5,8 @@ import Queue
 import irc.client
 import irc.buffer
 
+import random
+
 from twisted.internet import task
 from twisted.internet import reactor
 
@@ -21,7 +23,7 @@ class Nickbot(object):
         self.nick = nick
         self.server = server
         self.port = port
-        self.channels = ["#bitcointraders","#testmybot"]
+        self.channels = ["#bitcointraders","#wangchung", "#bitcoinbarons", "#nickbot"]
         #self.channels = ["#testmybot"]
         self.exch = exchDict
         self.c = None
@@ -41,11 +43,16 @@ class Nickbot(object):
         self.c.add_global_handler("disconnect", self.on_disconnect)
         self.c.add_global_handler("privmsg", self.on_privmsg)
         self.c.add_global_handler("pubmsg", self.on_pubmsg)
+	# self.c.add_global_handler("part", self.on_part)
+	# self.c.add_global_handler("quit", self.on_quit)
 
     def msg_all(self, msg):
         if self.c != None:
             for channel in self.channels:
                 self.c.privmsg(channel, msg)  # TODO use privmsg many
+
+    def msg_one(self, channel, msg):
+        self.c.privmsg(channel, msg)
 
     def on_connect(self, c, e):
         print "connected"
@@ -53,8 +60,8 @@ class Nickbot(object):
             c.join(channel)
 
     def on_join(self, c, e):
-        pass
-        #self.msg_all("hello")
+	pass
+        #self.msg_one(e.target, "hello")
 
     def on_disconnect(self, c, e):
         print "DISCONNECTED {}".format(e.arguments[0])
@@ -63,17 +70,34 @@ class Nickbot(object):
     def on_privmsg(self, c, e):
         self.parse_msg(e, e.arguments[0])
 
-    # TODO : reply to chan vs nick
     def on_pubmsg(self, c, e):
+	#self.msg_one(e.target, "HELLO")
+	if random.random()*100 < 1:
+	    pass
+	    # self.msg_one(e.target, 'SNIB SNIB')
         self.parse_msg(e, e.arguments[0])
 
     def parse_msg(self, e, data):
+	if e.source.nick == u"Lycerion":
+            pass
         #print "parsing {}".format(cmd)
         nick = e.source.nick
         cmd = data.split(" ", 3)
         if cmd[0] == "!help":
             # TODO : msg reply (not all)
-            self.msg_all("nickbotv2| new and improved, more features coming soon; PM extra with suggestions")
+            self.msg_one(e.target, "nickbotv2| new and improved, more features coming soon; PM extra with suggestions")
+	elif cmd[0] == "!usd":
+	    try:
+		base = float(cmd[1])
+		self.msg_one(e.target, str(base)+" CNY is about "+str(base*0.162)+" USD")
+	    except ValueError:
+		pass
+	elif cmd[0] == "!cny":
+	    try:
+	        base = float(cmd[1])
+	        self.msg_one(e.target, "$"+str(base)+" is about "+str(base*6.15)+" CNY")
+	    except ValueError:
+		pass
         elif cmd[0] == "!wall":
             if len(cmd) > 2:
                 try:
@@ -96,7 +120,8 @@ class Nickbot(object):
                         toSend += q.get(False) + u"; "
                     except Queue.Empty:
                         pass
-                self.msg_all( toSend )
+                self.msg_one( e.target, toSend )
+                self.msg_one( e.target, toSend )
         elif cmd[0] == "!volume":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 if len(cmd) > 2:
@@ -128,10 +153,11 @@ stamp = exch.Bitstamp(q)
 finex = exch.Bitfinex(q)
 huobi = exch.Huobi(q)
 btce = exch.BTCe(q)
+huobiltc = exch.HuobiLTC(q)
 
-exchDict = { "bitstamp" : stamp, "bitfinex" : finex, "huobi" : huobi, "btce" : btce }
+exchDict = { "bitstamp" : stamp, "bitfinex" : finex, "huobi" : huobi, "btce" : btce, "huobiltc" : huobiltc }
 
-nick = Nickbot("nickbotv2", "chat.freenode.net", exchDict)
+nick = Nickbot("nickbotv2", "weber.freenode.net", exchDict)
 
 reactor.callLater(5, nick.start)
 

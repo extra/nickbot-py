@@ -17,7 +17,7 @@ from util import RepeatEvent
 
 class Exchange(object):
     def __init__(self, name, queue, currency="$", tradeThreshold=100,
-                 volumeThreshold=250, wallThreshold=500, priceSens=15):
+                 volumeThreshold=250, wallThreshold=2500, priceSens=40):
         self.name = name
         self.currency = currency
         self.q = queue
@@ -88,13 +88,12 @@ class Exchange(object):
 
     def gotTrade(self, price, amount, tradeType=None):
         # TODO handle None
+        tType = ""
         if tradeType == None:
             if price > self.lastTrade:
                 tType = "Buy"
             elif price < self.lastTrade:
                 tType = "Sell"
-            else:
-                tType = ""
         else:
             if tradeType == "1":
                 tType = "Buy"
@@ -123,11 +122,13 @@ class Exchange(object):
         for order in self.orderBook - self.oldBook:
             # in orderBook, but not in oldBook (new wall)
             amount = self.orderPrices[order[2]]
-            self.wallAlert( amount[0], amount[1], order[2], order[0] )
+            if( order[2] < self.lastTrade + (self.priceSens /2) and order[2] > self.lastTrade - (self.priceSens/2)):
+            	self.wallAlert( amount[0], amount[1], order[2], order[0] )
         for order in self.oldBook - self.orderBook:
             # in oldBook, but not in orderBook (wall pulled)
             amount = self.orderPrices[order[2]]
-            self.wallAlert( -1 * amount[0], -1 * amount[1], order[2], order[0] )
+            if( order[2] < self.lastTrade + (self.priceSens /2) and order[2] > self.lastTrade - (self.priceSens/2)):
+            	self.wallAlert( -1 * amount[0], -1 * amount[1], order[2], order[0] )
         self.oldBook = self.orderBook.copy()  # TODO : worry about concurrency?
 
     def tradeAlert(self, amount, price, direction):
@@ -158,7 +159,7 @@ class Exchange(object):
 class Bitstamp(Exchange):
     def __init__(self, queue, pusherKey='de504dc5763aeef9ff52'):
         Exchange.__init__(self, "Bitstamp", queue, tradeThreshold=100,
-                          volumeThreshold=250, wallThreshold=500)
+                          volumeThreshold=250, wallThreshold=2500)
 
         self.pusherKey = pusherKey
         self.pusher = twistedpusher.Client(key=self.pusherKey)
@@ -199,7 +200,7 @@ class Bitfinex(Exchange):
     # TODO  SWAP
     def __init__(self, queue):
         Exchange.__init__(self, "Bitfinex", queue, tradeThreshold=100,
-                          volumeThreshold=250, wallThreshold=1000)
+                          volumeThreshold=250, wallThreshold=2500)
 
         #self.base = apiBase 
         self.base = "https://api.bitfinex.com/v1/"
@@ -275,7 +276,7 @@ class Bitfinex(Exchange):
 class Huobi(Exchange):
     def __init__(self, queue):
         Exchange.__init__(self, "Huobi", queue, tradeThreshold=100,
-                          volumeThreshold=250, wallThreshold=1000,
+                          volumeThreshold=250, wallThreshold=2500,
                           priceSens=100, currency=u'¥')
 
         #self.base = apiBase 
@@ -455,3 +456,64 @@ class BTCe(Exchange):
             price = float(ask[0])
             amount = float(ask[1])
             self.orderAdd( price, amount, 1 )
+
+class HuobiLTC(Exchange):
+    def __init__(self, queue):
+        Exchange.__init__(self, "Huobi LTC", queue, tradeThreshold=5000,
+                          volumeThreshold=99999999, wallThreshold=99999999,
+                          priceSens=999999999, currency=u'¥')
+
+        #self.base = apiBase 
+        self.base = "http://market.huobi.com/staticmarket/"
+        # TODO add http(s) back...timeouts fix?
+        self.tradeTime = None
+
+        try:
+            r = requests.get( self.base + 'ticker_ltc_json.js' )
+            data = r.json()
+            self.lastTrade = float(data['ticker']['last'])
+        except ValueError:
+            self.lastTrade = 0.0
+            print "Couldn't get huobi price"
+        except requests.exceptions.Timeout:
+            self.lastTrade = 0.0
+            print "Huobi Price Timeout"
+        except requests.exceptions.ConnectionError:
+            self.lastTrade = 0.0
+            print "Huobi Price Error"
+
+        self.pollTrade = RepeatEvent(20, self.getTrade)
+        print "HuobiLTC Initialized"
+
+    def getTrade(self):
+        try:
+            r = requests.get( self.base + 'detail_ltc_json.js')
+            data = r.json()
+        except ValueError:
+            print "Couldn't decode Huobi"
+            return
+        except requests.exceptions.Timeout:
+            print "Huobi Trade Timeout"
+            return
+        except requests.exceptions.ConnectionError:
+            print "Huobi Trade Error"
+            return
+
+        if len(data) > 0:
+            if self.tradeTime == None:
+                self.tradeTime = time.strptime(data['trades'][0]['time'], "%H:%M:%S")
+                print "Set time: {} {}".format(data['trades'][0]['time'],self.tradeTime)
+                return
+            for trade in data['trades']:
+                tradeTime, price, amount, which = time.strptime(trade['time'], "%H:%M:%S"), float(trade['price']), float(trade['amount']), trade['type']
+                if tradeTime > self.tradeTime:
+                    if which == u'买入':
+                        which = 1
+                    else:
+                        which = 0 # '卖出'
+                    self.gotTrade(price, amount, tradeType=which)
+                    self.gotVolume(amount)
+            self.tradeTime = time.strptime(data['trades'][0]['time'], "%H:%M:%S")
+
+    def getOrders(self):
+	pass
