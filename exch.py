@@ -250,7 +250,7 @@ class Bitfinex(Exchange):
 	        hour_perc = 100 - (amount / amount_hour)*100
 
 
-	    amount_day = amount - float(l_day["amount_lent"])
+	    amount_day = float(l_day["amount_lent"])
 	    diff_day = amount - amount_day
 
 	    if diff_day >= 0:
