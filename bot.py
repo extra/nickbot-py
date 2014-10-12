@@ -97,6 +97,8 @@ class Nickbot(object):
 		else:
 		    self.exch['bitfinex'].getSwap()
 		    self.msg_one(e.target, q.get(False))
+		    self.msg_one(e.target, q.get(False))
+		    self.msg_one(e.target, q.get(False))
 	    except ValueError:
 		pass
         elif cmd[0] == "!usd":
