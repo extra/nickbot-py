@@ -3,6 +3,7 @@
 # exchange code
 import logging
 import json
+import datetime
 import Queue
 from sys import exit
 import time
@@ -218,6 +219,29 @@ class Bitfinex(Exchange):
         self.pollTrade = RepeatEvent(3, self.getTrade)
         self.pollOrders = RepeatEvent(3, self.getOrders)
         print "Bitfinex Initialized"
+
+    def getSwap(self, currency=None):
+        if currency is None:
+            currency = ['btc', 'usd', 'ltc']
+	else:
+	    currency = [currency.lower()]
+
+	for curr in currency:
+	    r = requests.get( self.base + 'lends/' + curr )
+	    try:
+		data = r.json()[0]
+	    except ValueError:
+		return
+
+	    amount = float(data["amount_lent"])
+	    if curr == "usd":
+		amount = amount * 100
+
+	    date = datetime.datetime.fromtimestamp(data["timestamp"])
+	    data = date.strftime('%H:%M:%S')
+
+	    self.q.put("Current {} Swaps: {:.3f} as of {} EST".format(curr.upper(), amount, date))
+		
 
     def getTrade(self):
         payload = {'timestamp': self.tradeTime, 'limit_trades': '250'}

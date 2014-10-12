@@ -23,7 +23,7 @@ class Nickbot(object):
         self.nick = nick
         self.server = server
         self.port = port
-        self.channels = ["#bitcointraders","#wangchung", "#bitcoinbarons", "#nickbot"]
+        self.channels = ["#bitcointraders","#bitcointraders-bots","#nickbot"]
         #self.channels = ["#testmybot"]
         self.exch = exchDict
         self.c = None
@@ -83,16 +83,29 @@ class Nickbot(object):
         #print "parsing {}".format(cmd)
         nick = e.source.nick
         cmd = data.split(" ", 3)
-        if cmd[0] == "!help":
+	if cmd[0] == "!help":
             # TODO : msg reply (not all)
             self.msg_one(e.target, "nickbotv2| new and improved, more features coming soon; PM extra with suggestions")
-	elif cmd[0] == "!usd":
+	elif cmd[0] == "!swap":
 	    try:
+		if len(cmd) > 1:
+		    curr = cmd[1]
+		    if len(curr) > 3:
+		        return
+		    self.exch['bitfinex'].getSwap(currency=cmd[1])
+		    self.msg_one(e.target, q.get(False))
+		else:
+		    self.exch['bitfinex'].getSwap()
+		    self.msg_one(e.target, q.get(False))
+	    except ValueError:
+		pass
+        elif cmd[0] == "!usd":
+            try:
 		base = float(cmd[1])
 		self.msg_one(e.target, str(base)+" CNY is about "+str(base*0.162)+" USD")
 	    except ValueError:
 		pass
-	elif cmd[0] == "!cny":
+        elif cmd[0] == "!cny":
 	    try:
 	        base = float(cmd[1])
 	        self.msg_one(e.target, "$"+str(base)+" is about "+str(base*6.15)+" CNY")
