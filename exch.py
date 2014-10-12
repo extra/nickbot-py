@@ -235,10 +235,9 @@ class Bitfinex(Exchange):
 
 	    amount = float(data["amount_lent"])
 
-	    date = datetime.datetime.fromtimestamp(data["timestamp"])
-	    data = date.strftime('%H:%M:%S')
+	    swapdate = datetime.datetime.fromtimestamp(data["timestamp"]).strftime('%H:%M:%S')
 
-	    self.q.put("Current {} Swaps: {:20,.3f} as of {} EST".format(curr.upper(), amount, date))
+	    self.q.put("{} Swaps: {:20,.3f} {} as of {} EST".format(curr.upper(), amount, curr.upper(), swapdate))
 		
 
     def getTrade(self):
