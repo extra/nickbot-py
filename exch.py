@@ -229,15 +229,41 @@ class Bitfinex(Exchange):
 	for curr in currency:
 	    r = requests.get( self.base + 'lends/' + curr )
 	    try:
-		data = r.json()[0]
+		data = r.json()
 	    except ValueError:
 		return
 
-	    amount = float(data["amount_lent"])
+	    current = data[0]
+	    l_hour = data[1]
+	    l_day = data[24]
 
-	    swapdate = datetime.datetime.fromtimestamp(data["timestamp"]).strftime('%H:%M:%S')
+	    amount = float(current["amount_lent"])
 
-	    self.q.put("{} Swaps: {:20,.3f} {} as of {} EST".format(curr.upper(), amount, curr.upper(), swapdate))
+	    amount_hour = float(l_hour["amount_lent"])
+	    diff_hour = amount - amount_hour
+
+	    if diff_hour >= 0:
+		hour_symb = '+'
+	        hour_perc = 100 - (amount_hour / amount)*100
+	    else:
+		hour_symb = '-'
+	        hour_perc = 100 - (amount / amount_hour)*100
+
+
+	    amount_day = amount - float(l_day["amount_lent"])
+	    diff_day = amount - amount_day
+
+	    if diff_day >= 0:
+		day_symb = '+'
+	        day_perc = 100 - (amount_day / amount)*100
+	    else:
+		day_symb = '-'
+	        day_perc = 100 - (amount / amount_day)*100
+
+	    swapdate = datetime.datetime.fromtimestamp(current["timestamp"]).strftime('%H:%M:%S')
+
+	    self.q.put("{} Swaps: {:15,.3f} {} as of {} EST (1h {}{:.2f}%, 24h {}{:.2f}%)".format(
+		curr.upper(), amount, curr.upper(), swapdate, hour_symb, hour_perc, day_symb, day_perc))
 		
 
     def getTrade(self):

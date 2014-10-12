@@ -23,8 +23,8 @@ class Nickbot(object):
         self.nick = nick
         self.server = server
         self.port = port
-        self.channels = ["#bitcointraders","#bitcointraders-bots","#nickbot"]
-        #self.channels = ["#testmybot"]
+        #self.channels = ["#bitcointraders","#bitcointraders-bots","#nickbot"]
+        self.channels = ["#nickbot"]
         self.exch = exchDict
         self.c = None
 
