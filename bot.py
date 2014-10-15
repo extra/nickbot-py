@@ -84,8 +84,7 @@ class Nickbot(object):
         nick = e.source.nick
         cmd = data.split(" ", 3)
 	if cmd[0] == "!help":
-            # TODO : msg reply (not all)
-            self.msg_one(e.target, "nickbotv2| new and improved, more features coming soon; PM extra with suggestions")
+            self.msg_one(e.target, "Contribute Here: https://github.com/extra/nickbot-py")
 	elif cmd[0] == "!swap":
 	    try:
 		if len(cmd) > 1:
