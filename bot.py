@@ -51,8 +51,11 @@ class Nickbot(object):
             for channel in self.channels:
                 self.c.privmsg(channel, msg)  # TODO use privmsg many
 
-    def msg_one(self, channel, msg):
-        self.c.privmsg(channel, msg)
+    def msg_one(self, e, msg):
+	if e.target == self.nick:
+	    self.c.privmsg(e.source.nick, msg)
+	else:
+	    self.c.privmsg(e.target, msg)
 
     def on_connect(self, c, e):
         print "connected"
@@ -61,7 +64,6 @@ class Nickbot(object):
 
     def on_join(self, c, e):
 	pass
-        #self.msg_one(e.target, "hello")
 
     def on_disconnect(self, c, e):
         print "DISCONNECTED {}".format(e.arguments[0])
@@ -71,20 +73,17 @@ class Nickbot(object):
         self.parse_msg(e, e.arguments[0])
 
     def on_pubmsg(self, c, e):
-	#self.msg_one(e.target, "HELLO")
 	if random.random()*100 < 1:
 	    pass
-	    # self.msg_one(e.target, 'SNIB SNIB')
         self.parse_msg(e, e.arguments[0])
 
     def parse_msg(self, e, data):
 	if e.source.nick == u"Lycerion":
             pass
-        #print "parsing {}".format(cmd)
         nick = e.source.nick
         cmd = data.split(" ", 3)
 	if cmd[0] == "!help":
-            self.msg_one(e.target, "Contribute Here: https://github.com/extra/nickbot-py")
+            self.msg_one(e, "Contribute Here: https://github.com/extra/nickbot-py")
 	elif cmd[0] == "!swap":
 	    try:
 		if len(cmd) > 1:
@@ -92,24 +91,24 @@ class Nickbot(object):
 		    if len(curr) > 3:
 		        return
 		    self.exch['bitfinex'].getSwap(currency=cmd[1])
-		    self.msg_one(e.target, q.get(False))
+		    self.msg_one(e, q.get(False))
 		else:
 		    self.exch['bitfinex'].getSwap()
-		    self.msg_one(e.target, q.get(False))
-		    self.msg_one(e.target, q.get(False))
-		    self.msg_one(e.target, q.get(False))
+		    self.msg_one(e, q.get(False))
+		    self.msg_one(e, q.get(False))
+		    self.msg_one(e, q.get(False))
 	    except ValueError:
 		pass
         elif cmd[0] == "!usd":
             try:
 		base = float(cmd[1])
-		self.msg_one(e.target, str(base)+" CNY is about "+str(base*0.162)+" USD")
+		self.msg_one(e, str(base)+" CNY is about "+str(base*0.162)+" USD")
 	    except ValueError:
 		pass
         elif cmd[0] == "!cny":
 	    try:
 	        base = float(cmd[1])
-	        self.msg_one(e.target, "$"+str(base)+" is about "+str(base*6.15)+" CNY")
+	        self.msg_one(e, "$"+str(base)+" is about "+str(base*6.15)+" CNY")
 	    except ValueError:
 		pass
         elif cmd[0] == "!wall":
@@ -134,8 +133,8 @@ class Nickbot(object):
                         toSend += q.get(False) + u"; "
                     except Queue.Empty:
                         pass
-                self.msg_one( e.target, toSend )
-                self.msg_one( e.target, toSend )
+                self.msg_one( e, toSend )
+                self.msg_one( e, toSend )
         elif cmd[0] == "!volume":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 if len(cmd) > 2:
