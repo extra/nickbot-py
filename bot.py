@@ -128,12 +128,11 @@ class Nickbot(object):
                     self.exch[exch].priceQuery()
                 # threading/concurrency issues
                 toSend = u""
-                for x in [1,2,3,4]:
+                for x in self.exch:
                     try:
                         toSend += q.get(False) + u"; "
                     except Queue.Empty:
                         pass
-                self.msg_one( e, toSend )
                 self.msg_one( e, toSend )
         elif cmd[0] == "!volume":
             if len(cmd) > 1 and cmd[1] in self.exch:
