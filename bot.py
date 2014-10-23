@@ -119,10 +119,9 @@ class Nickbot(object):
                     return
                 if amount >= 750 and amount <= 10000:
                     if cmd[1] in self.exch:
-			if cmd[1] in self.exch:
-                            self.exch[cmd[1]].setWall(cmd[2])
-			else:
-			    self.msg_one(e, "Unknown Exchange.  Use full names.")
+                        self.exch[cmd[1]].setWall(cmd[2])
+		    else:
+	                self.msg_one(e, "Unknown Exchange.  Use full names.")
         elif cmd[0] == "!price":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 self.exch[cmd[1]].priceQuery()
