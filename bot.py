@@ -84,6 +84,7 @@ class Nickbot(object):
         cmd = data.split(" ", 3)
 	if cmd[0] == "!help":
             self.msg_one(e, "Contribute Here: https://github.com/extra/nickbot-py")
+	    self.msg_one(e, "Exchanges: bitstamp, bitfinex, btce, huobi, huobiltc")
 	elif cmd[0] == "!swap":
 	    try:
 		if len(cmd) > 1:
