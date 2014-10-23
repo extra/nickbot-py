@@ -117,12 +117,16 @@ class Nickbot(object):
                     amount = int(cmd[2])
                 except TypeError:
                     return
-                if amount >= 250 and amount <= 5000:
+                if amount >= 750 and amount <= 10000:
                     if cmd[1] in self.exch:
-                        self.exch[cmd[1]].setWall(cmd[2])
+			if cmd[1] in self.exch:
+                            self.exch[cmd[1]].setWall(cmd[2])
+			else:
+			    self.msg_one(e, "Unknown Exchange.  Use full names.")
         elif cmd[0] == "!price":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 self.exch[cmd[1]].priceQuery()
+                self.msg_one( e, toSend )
             else:
                 for exch in self.exch:
                     self.exch[exch].priceQuery()
@@ -139,7 +143,7 @@ class Nickbot(object):
                 if len(cmd) > 2:
                     try:
                         volume = int(cmd[2])
-                    except TypeError:
+                    except ValueError:
                         return
                 else:
                     volume = 1
@@ -150,7 +154,7 @@ class Nickbot(object):
                 if len(cmd) > 1:
                     try:
                         volume = int(cmd[1])
-                    except TypeError:
+                    except ValueError:
                         return
                 else:
                     volume = 1
