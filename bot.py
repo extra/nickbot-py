@@ -5,6 +5,7 @@ import Queue
 import irc.client
 import irc.buffer
 
+import time
 import random
 
 from twisted.internet import task
@@ -19,11 +20,15 @@ q = Queue.Queue(maxsize=0)
 class Nickbot(object):
 
     def __init__(self, nick, server, exchDict, port=6667):
+	self.rate = 5.0
+	self.per = 5.0
+	self.allowance = self.rate
+	self.last_check = time.time()
         self.client = irc.client.IRC()
         self.nick = nick
         self.server = server
         self.port = port
-        self.channels = ["#bitcointraders","#bitcointraders-bots","#nickbot"]
+        self.channels = ["#bitcointraders", "#bitcointraders-bots", "#nickbot"]
         #self.channels = ["#nickbot"]
         self.exch = exchDict
         self.c = None
@@ -51,7 +56,23 @@ class Nickbot(object):
             for channel in self.channels:
                 self.c.privmsg(channel, msg)  # TODO use privmsg many
 
+    def limit(self):
+	# http://stackoverflow.com/questions/667508/whats-a-good-rate-limiting-algorithm
+	current = time.time()
+	time_passed = current - self.last_check
+	self.last_check = current
+	self.allowance += time_passed * (self.rate / self.per)
+	if( self.allowance > self.rate):
+	    self.allowance = self.rate; # throttle
+	if( self.allowance < 1.0):
+	    return True
+	else:
+	    self.allowance -= 1.0
+	    return False
+
     def msg_one(self, e, msg):
+	if self.limit():
+	    return	
 	if e.target == self.nick:
 	    self.c.privmsg(e.source.nick, msg)
 	else:
@@ -126,6 +147,7 @@ class Nickbot(object):
         elif cmd[0] == "!price":
             if len(cmd) > 1 and cmd[1] in self.exch:
                 self.exch[cmd[1]].priceQuery()
+		toSend = q.get(False)
                 self.msg_one( e, toSend )
             else:
                 for exch in self.exch:
@@ -139,29 +161,21 @@ class Nickbot(object):
                         pass
                 self.msg_one( e, toSend )
         elif cmd[0] == "!volume":
-            if len(cmd) > 1 and cmd[1] in self.exch:
-                if len(cmd) > 2:
-                    try:
-                        volume = int(cmd[2])
-                    except ValueError:
-                        return
-                else:
-                    volume = 1
-                if volume < 1 or volume > 1440:
-                    return
-                self.exch[cmd[1]].volumeQuery(volume)
-            else:
-                if len(cmd) > 1:
-                    try:
-                        volume = int(cmd[1])
-                    except ValueError:
-                        return
-                else:
-                    volume = 1
-                if volume < 1 or volume > 1440:
-                    return
-                for exch in self.exch:
-                    self.exch[exch].volumeQuery(volume)
+	    if len(cmd) > 2:
+		try:
+	    	    volume = int(cmd[2])
+		except ValueError:
+		    return
+	    else:
+		volume = 1
+	    if volume < 1 or volume > 1440:
+		return
+	    if cmd[1] in self.exch:
+		self.exch[cmd[1]].volumeQuery(volume)
+		toSend = q.get(False)  ## why am I even using a queue, this is so shit
+		self.msg_one(e, toSend )
+	    else:
+		self.msg_one(e, "Unknown Exchange.  Use full names.")
 
 ## btc config ##
 
